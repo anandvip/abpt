@@ -36,7 +36,21 @@
             background-color: var(--primary-color);
             color: white;
             text-align: center;
-            padding: 40px 0;
+            padding: 20px 0;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            margin-bottom: 10px;
+        }
+
+        .user-info img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
         }
 
         h1, h2, h3 {
@@ -308,9 +322,6 @@
         .footer {
             text-align: center;
             margin-top: 20px;
-            padding: , color;
-          text-align: center;
-            margin-top: 20px;
             padding: 10px;
             background-color: var(--primary-color);
             color: white;
@@ -324,6 +335,11 @@
 </head>
 <body>
     <header>
+        <div class="user-info hidden">
+            <img id="userProfileImage" src="" alt="User Profile">
+            <span id="userName"></span>
+            <span id="userEmail"></span>
+        </div>
         <h1>Advanced Blood Pressure Tracker</h1>
         <p>Take control of your health with our comprehensive blood pressure monitoring tool</p>
     </header>
@@ -478,7 +494,7 @@
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, where, getDocs, deleteDoc, doc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, where, getDocs, deleteDoc, doc, updateDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
 
         // Your web app's Firebase configuration
         const firebaseConfig = {
@@ -515,6 +531,10 @@
         const editProfileForm = document.getElementById('editProfileForm');
         const toast = document.getElementById('toast');
         const showLandingPageLink = document.getElementById('showLandingPage');
+        const userInfo = document.querySelector('.user-info');
+        const userProfileImage = document.getElementById('userProfileImage');
+        const userNameDisplay = document.getElementById('userName');
+        const userEmailDisplay = document.getElementById('userEmail');
 
         let currentUser = null;
         let chart = null;
@@ -524,6 +544,7 @@
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 showToast('Account created successfully!');
+                await createUserProfile(userCredential.user);
                 hideLandingPage();
             } catch (error) {
                 console.error("Error in signUp:", error);
@@ -547,6 +568,7 @@
                 const provider = new GoogleAuthProvider();
                 const result = await signInWithPopup(auth, provider);
                 showToast('Signed in with Google successfully!');
+                await createUserProfile(result.user);
                 hideLandingPage();
             } catch (error) {
                 console.error("Error in signInWithGoogle:", error);
@@ -562,6 +584,21 @@
             } catch (error) {
                 console.error("Error in logOut:", error);
                 showToast('Error signing out: ' + error.message, 'error');
+            }
+        }
+
+        async function createUserProfile(user) {
+            try {
+                await setDoc(doc(db, 'users', user.uid), {
+                    name: user.displayName || 'New User',
+                    email: user.email,
+                    photoURL: user.photoURL || '',
+                    createdAt: serverTimestamp()
+                });
+                console.log("User profile created successfully");
+            } catch (error) {
+                console.error("Error creating user profile:", error);
+                showToast('Error creating user profile: ' + error.message, 'error');
             }
         }
 
@@ -608,42 +645,34 @@
             }
         }
 
-        async function addUser(userData) {
-            try {
-                await addDoc(collection(db, 'users'), userData);
-                showToast('User added successfully!');
-                loadUsers();
-            } catch (error) {
-                console.error("Error adding user:", error);
-                showToast('Error adding user: ' + error.message, 'error');
-            }
-        }
-
-        async function loadUsers() {
-            try {
-                const querySnapshot = await getDocs(collection(db, 'users'));
-                userSelect.innerHTML = '<option value="">Select User</option>';
-                querySnapshot.forEach((doc) => {
-                    const user = doc.data();
-                    const option = document.createElement('option');
-                    option.value = doc.id;
-                    option.textContent = user.name;
-                    userSelect.appendChild(option);
-                });
-            } catch (error) {
-                console.error("Error loading users:", error);
-                showToast('Error loading users: ' + error.message, 'error');
-            }
-        }
-
         async function updateUserProfile(userData) {
             try {
                 await updateDoc(doc(db, 'users', currentUser.uid), userData);
                 showToast('Profile updated successfully!');
-                loadUsers();
+                await loadUserProfile();
             } catch (error) {
                 console.error("Error updating profile:", error);
                 showToast('Error updating profile: ' + error.message, 'error');
+            }
+        }
+
+        async function loadUserProfile() {
+            try {
+                const docRef = doc(db, 'users', currentUser.uid);
+                const docSnap = await getDocs(docRef);
+                
+                if (docSnap.exists()) {
+                    const userData = docSnap.data();
+                    userProfileImage.src = userData.photoURL || 'https://via.placeholder.com/40';
+                    userNameDisplay.textContent = userData.name;
+                    userEmailDisplay.textContent = userData.email;
+                    userInfo.classList.remove('hidden');
+                } else {
+                    console.log("No user profile found!");
+                }
+            } catch (error) {
+                console.error("Error loading user profile:", error);
+                showToast('Error loading user profile: ' + error.message, 'error');
             }
         }
 
@@ -679,7 +708,7 @@
                     data: readings.map(r => ({ x: r.timestamp.toDate(), y: r.systolic }))
                 }, {
                     name: 'Diastolic',
-                   data: readings.map(r => ({ x: r.timestamp.toDate(), y: r.diastolic }))
+                    data: readings.map(r => ({ x: r.timestamp.toDate(), y: r.diastolic }))
                 }, {
                     name: 'Pulse',
                     data: readings.map(r => ({ x: r.timestamp.toDate(), y: r.pulse }))
@@ -737,6 +766,7 @@
             landingPage.classList.remove('hidden');
             authContainer.classList.remove('hidden');
             mainApp.classList.add('hidden');
+            userInfo.classList.add('hidden');
         }
 
         // Event Listeners
@@ -771,24 +801,7 @@
             bpForm.reset();
         });
 
-        userSelect.addEventListener('change', (e) => {
-            currentUser = { uid: e.target.value };
-            loadReadings();
-        });
-
-        addUserBtn.addEventListener('click', () => addUserModal.style.display = 'block');
         editProfileBtn.addEventListener('click', () => editProfileModal.style.display = 'block');
-
-        addUserForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const userData = {
-                name: document.getElementById('userName').value,
-                email: document.getElementById('userEmail').value,
-                phone: document.getElementById('userPhone').value
-            };
-            addUser(userData);
-            addUserModal.style.display = 'none';
-        });
 
         editProfileForm.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -826,7 +839,7 @@
             if (user) {
                 currentUser = user;
                 hideLandingPage();
-                loadUsers();
+                loadUserProfile();
                 loadReadings();
             } else {
                 showLandingPage();
@@ -834,4 +847,3 @@
         });
     </script>
 </body>
-</html>

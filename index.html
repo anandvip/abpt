@@ -308,6 +308,9 @@
         .footer {
             text-align: center;
             margin-top: 20px;
+            padding: , color;
+          text-align: center;
+            margin-top: 20px;
             padding: 10px;
             background-color: var(--primary-color);
             color: white;
@@ -473,9 +476,9 @@
 
     <script type="module">
         // Import the functions you need from the SDKs you need
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, where, getDocs, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, where, getDocs, deleteDoc, doc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
 
         // Your web app's Firebase configuration
         const firebaseConfig = {
@@ -517,47 +520,49 @@
         let chart = null;
 
         // Authentication functions
-        function signUp(email, password) {
-            createUserWithEmailAndPassword(auth, email, password)
-                .then((userCredential) => {
-                    showToast('Account created successfully!');
-                    hideLandingPage();
-                })
-                .catch((error) => {
-                    showToast('Error: ' + error.message, 'error');
-                });
+        async function signUp(email, password) {
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                showToast('Account created successfully!');
+                hideLandingPage();
+            } catch (error) {
+                console.error("Error in signUp:", error);
+                showToast('Error: ' + error.message, 'error');
+            }
         }
 
-        function logIn(email, password) {
-            signInWithEmailAndPassword(auth, email, password)
-                .then((userCredential) => {
-                    showToast('Logged in successfully!');
-                    hideLandingPage();
-                })
-                .catch((error) => {
-                    showToast('Error: ' + error.message, 'error');
-                });
+        async function logIn(email, password) {
+            try {
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                showToast('Logged in successfully!');
+                hideLandingPage();
+            } catch (error) {
+                console.error("Error in logIn:", error);
+                showToast('Error: ' + error.message, 'error');
+            }
         }
 
-        function signInWithGoogle() {
-            const provider = new GoogleAuthProvider();
-            signInWithPopup(auth, provider)
-                .then((result) => {
-                    showToast('Signed in with Google successfully!');
-                    hideLandingPage();
-                })
-                .catch((error) => {
-                    showToast('Error: ' + error.message, 'error');
-                });
+        async function signInWithGoogle() {
+            try {
+                const provider = new GoogleAuthProvider();
+                const result = await signInWithPopup(auth, provider);
+                showToast('Signed in with Google successfully!');
+                hideLandingPage();
+            } catch (error) {
+                console.error("Error in signInWithGoogle:", error);
+                showToast('Error: ' + error.message, 'error');
+            }
         }
 
-        function logOut() {
-            signOut(auth).then(() => {
+        async function logOut() {
+            try {
+                await signOut(auth);
                 showToast('Signed out successfully!');
                 showLandingPage();
-            }).catch((error) => {
+            } catch (error) {
+                console.error("Error in logOut:", error);
                 showToast('Error signing out: ' + error.message, 'error');
-            });
+            }
         }
 
         // Firestore functions
@@ -565,11 +570,12 @@
             try {
                 await addDoc(collection(db, 'users', currentUser.uid, 'readings'), {
                     ...reading,
-                    timestamp: new Date()
+                    timestamp: serverTimestamp()
                 });
                 showToast('Reading added successfully!');
                 loadReadings();
             } catch (error) {
+                console.error("Error adding reading:", error);
                 showToast('Error adding reading: ' + error.message, 'error');
             }
         }
@@ -586,6 +592,7 @@
                 updateChart(readings);
                 updateStats(readings);
             } catch (error) {
+                console.error("Error loading readings:", error);
                 showToast('Error loading readings: ' + error.message, 'error');
             }
         }
@@ -596,6 +603,7 @@
                 showToast('Reading deleted successfully!');
                 loadReadings();
             } catch (error) {
+                console.error("Error deleting reading:", error);
                 showToast('Error deleting reading: ' + error.message, 'error');
             }
         }
@@ -606,6 +614,7 @@
                 showToast('User added successfully!');
                 loadUsers();
             } catch (error) {
+                console.error("Error adding user:", error);
                 showToast('Error adding user: ' + error.message, 'error');
             }
         }
@@ -622,6 +631,7 @@
                     userSelect.appendChild(option);
                 });
             } catch (error) {
+                console.error("Error loading users:", error);
                 showToast('Error loading users: ' + error.message, 'error');
             }
         }
@@ -632,6 +642,7 @@
                 showToast('Profile updated successfully!');
                 loadUsers();
             } catch (error) {
+                console.error("Error updating profile:", error);
                 showToast('Error updating profile: ' + error.message, 'error');
             }
         }
@@ -668,7 +679,7 @@
                     data: readings.map(r => ({ x: r.timestamp.toDate(), y: r.systolic }))
                 }, {
                     name: 'Diastolic',
-                    data: readings.map(r => ({ x: r.timestamp.toDate(), y: r.diastolic }))
+                   data: readings.map(r => ({ x: r.timestamp.toDate(), y: r.diastolic }))
                 }, {
                     name: 'Pulse',
                     data: readings.map(r => ({ x: r.timestamp.toDate(), y: r.pulse }))
@@ -811,7 +822,7 @@
         }
 
         // Initialize app
-        auth.onAuthStateChanged((user) => {
+        onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
                 hideLandingPage();

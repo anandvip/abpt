@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Blood Pressure Tracker</title>
+    <style>
+        /* CSS styles will be added here */
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            width: 80%;
+            margin: auto;
+            overflow: hidden;
+            padding: 20px;
+        }
+        header {
+            background: #3498db;
+            color: white;
+            padding-top: 30px;
+            min-height: 70px;
+            border-bottom: #2980b9 3px solid;
+            text-align: center;
+        }
+        #auth-container, #main-app {
+            background: white;
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        input[type="email"], input[type="password"], input[type="number"], input[type="text"], select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        #readings-list {
+            margin-top: 20px;
+        }
+        .reading-item {
+            background: #f9f9f9;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Advanced Blood Pressure Tracker</h1>
+    </header>
+
+    <div class="container">
+        <div id="auth-container">
+            <h2>Authentication</h2>
+            <div id="signup-form">
+                <h3>Sign Up</h3>
+                <input type="email" id="signup-email" placeholder="Email" required>
+                <input type="password" id="signup-password" placeholder="Password" required>
+                <button id="signup-button">Sign Up</button>
+            </div>
+            <div id="login-form">
+                <h3>Log In</h3>
+                <input type="email" id="login-email" placeholder="Email" required>
+                <input type="password" id="login-password" placeholder="Password" required>
+                <button id="login-button">Log In</button>
+            </div>
+            <button id="google-signin">Sign in with Google</button>
+        </div>
+
+        <div id="main-app" class="hidden">
+            <h2>Blood Pressure Tracker</h2>
+            <button id="logout-button">Log Out</button>
+            <form id="bp-form">
+                <input type="number" id="systolic" placeholder="Systolic" required>
+                <input type="number" id="diastolic" placeholder="Diastolic" required>
+                <input type="number" id="pulse" placeholder="Pulse" required>
+                <select id="body-position" required>
+                    <option value="">Select Body Position</option>
+                    <option value="seated">Seated</option>
+                    <option value="lying">Lying</option>
+                    <option value="standing">Standing</option>
+                </select>
+                <select id="cuff-location" required>
+                    <option value="">Select Cuff Location</option>
+                    <option value="UL">Upper Left</option>
+                    <option value="UR">Upper Right</option>
+                    <option value="WL">Wrist Left</option>
+                    <option value="WR">Wrist Right</option>
+                </select>
+                <button type="submit">Add Reading</button>
+            </form>
+            <div id="stats">
+                <h3>Statistics</h3>
+                <p>Average Systolic: <span id="avg-systolic"></span></p>
+                <p>Average Diastolic: <span id="avg-diastolic"></span></p>
+                <p>Average Pulse: <span id="avg-pulse"></span></p>
+            </div>
+            <div id="readings-list"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, where, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyD61aHDaez7cDEzFk2ZNPGnOJP2LPmwwtQ",
+            authDomain: "abpt-f32e1.firebaseapp.com",
+            projectId: "abpt-f32e1",
+            storageBucket: "abpt-f32e1.appspot.com",
+            messagingSenderId: "836701441326",
+            appId: "1:836701441326:web:ed094f236c49c88fe7febf"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // DOM Elements
+        const authContainer = document.getElementById('auth-container');
+        const mainApp = document.getElementById('main-app');
+        const signupForm = document.getElementById('signup-form');
+        const loginForm = document.getElementById('login-form');
+        const logoutButton = document.getElementById('logout-button');
+        const googleSignin = document.getElementById('google-signin');
+        const bpForm = document.getElementById('bp-form');
+        const readingsList = document.getElementById('readings-list');
+
+        // Authentication functions
+        function signUp() {
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            createUserWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    // Signed up
+                    showMainApp();
+                })
+                .catch((error) => {
+                    alert('Error signing up: ' + error.message);
+                });
+        }
+
+        function logIn() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            signInWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    // Logged in
+                    showMainApp();
+                })
+                .catch((error) => {
+                    alert('Error logging in: ' + error.message);
+                });
+        }
+
+        function logOut() {
+            signOut(auth).then(() => {
+                showAuthContainer();
+            }).catch((error) => {
+                alert('Error signing out: ' + error.message);
+            });
+        }
+
+        function signInWithGoogle() {
+            const provider = new GoogleAuthProvider();
+            signInWithPopup(auth, provider)
+                .then((result) => {
+                    // Google sign-in successful
+                    showMainApp();
+                }).catch((error) => {
+                    alert('Error signing in with Google: ' + error.message);
+                });
+        }
+
+        // Firestore functions
+        async function addReading(userId, reading) {
+            try {
+                const docRef = await addDoc(collection(db, "readings"), {
+                    userId: userId,
+                    ...reading,
+                    timestamp: new Date()
+                });
+                console.log("Document written with ID: ", docRef.id);
+                return docRef.id;
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                throw e;
+            }
+        }
+
+        async function getReadings(userId) {
+            const readings = [];
+            const q = query(collection(db, "readings"), where("userId", "==", userId));
+            const querySnapshot = await getDocs(q);
+            querySnapshot.forEach((doc) => {
+                readings.push({ id: doc.id, ...doc.data() });
+            });
+            return readings;
+        }
+
+        async function deleteReading(readingId) {
+            try {
+                await deleteDoc(doc(db, "readings", readingId));
+                console.log("Document successfully deleted!");
+            } catch (e) {
+                console.error("Error removing document: ", e);
+                throw e;
+            }
+        }
+
+        // UI functions
+        function showMainApp() {
+            authContainer.classList.add('hidden');
+            mainApp.classList.remove('hidden');
+            loadReadings();
+        }
+
+        function showAuthContainer() {
+            authContainer.classList.remove('hidden');
+            mainApp.classList.add('hidden');
+        }
+
+        async function loadReadings() {
+            const userId = auth.currentUser.uid;
+            const readings = await getReadings(userId);
+            displayReadings(readings);
+            updateStats(readings);
+        }
+
+        function displayReadings(readings) {
+            readingsList.innerHTML = '';
+            readings.forEach(reading => {
+                const readingElement = document.createElement('div');
+                readingElement.classList.add('reading-item');
+                readingElement.innerHTML = `
+                    <p>Date: ${reading.timestamp.toDate().toLocaleString()}</p>
+                    <p>Systolic: ${reading.systolic}</p>
+                    <p>Diastolic: ${reading.diastolic}</p>
+                    <p>Pulse: ${reading.pulse}</p>
+                    <p>Body Position: ${reading.bodyPosition}</p>
+                    <p>Cuff Location: ${reading.cuffLocation}</p>
+                    <button class="delete-reading" data-id="${reading.id}">Delete</button>
+                `;
+                readingsList.appendChild(readingElement);
+            });
+
+            // Add event listeners to delete buttons
+            document.querySelectorAll('.delete-reading').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const readingId = e.target.getAttribute('data-id');
+                    await deleteReading(readingId);
+                    loadReadings();
+                });
+            });
+        }
+
+        function updateStats(readings) {
+            const systolicValues = readings.map(r => r.systolic);
+            const diastolicValues = readings.map(r => r.diastolic);
+            const pulseValues = readings.map(r => r.pulse);
+
+            document.getElementById('avg-systolic').textContent = calculateAverage(systolicValues).toFixed(1);
+            document.getElementById('avg-diastolic').textContent = calculateAverage(diastolicValues).toFixed(1);
+            document.getElementById('avg-pulse').textContent = calculateAverage(pulseValues).toFixed(1);
+        }
+
+        function calculateAverage(arr) {
+            return arr.length === 0 ? 0 : arr.reduce((a, b) => a + b) / arr.length;
+        }
+
+        // Event Listeners
+        signupForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            signUp();
+        });
+
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            logIn();
+        });
+
+        logoutButton.addEventListener('click', logOut);
+        googleSignin.addEventListener('click', signInWithGoogle);
+
+        bpForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const reading = {
+                systolic: parseInt(document.getElementById('systolic').value),
+                diastolic: parseInt(document.getElementById('diastolic').value),
+                pulse: parseInt(document.getElementById('pulse').value),
+                bodyPosition: document.getElementById('body-position').value,
+                cuffLocation: document.getElementById('cuff-location').value
+            };
+            await addReading(auth.currentUser.uid, reading);
+            bpForm.reset();
+            loadReadings();
+        });
+
+        // Check auth state
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                showMainApp();
+            } else {
+                showAuthContainer();
+            }
+        });
+    </script>
+</body>
+</html>
